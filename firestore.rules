@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "apostlederick51@gmail.com" && request.auth.token.email_verified == true));
+    }
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    
+    // Collection: users
+    // Document ID: userId
+    // Fields: id, name, phone, nrc, password, isRegistered, isVerified, balance, adminId, role
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'phone', 'nrc', 'password', 'isRegistered', 'isVerified', 'balance', 'adminId', 'role']) &&
+             data.id is string && data.name is string && data.phone is string;
+    }
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+    }
+    
+    // Collection: agents
+    // Document ID: agentId
+    // Fields: id, name, status, adminId
+    function isValidAgent(data) {
+      return hasOnlyAllowedFields(['id', 'name', 'status', 'adminId']) &&
+             data.id is string && data.name is string;
+    }
+    match /agents/{agentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Collection: tasks
+    // Document ID: taskId
+    // Fields: id, title, description, status, assignedTo
+    function isValidTask(data) {
+      return hasOnlyAllowedFields(['id', 'title', 'description', 'status', 'assignedTo']) &&
+             data.id is string && data.title is string;
+    }
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Collection: aiPublishRequests
+    // Document ID: requestId
+    // Fields: id, title, content, status, requesterId, requesterRole, createdAt
+    function isValidAiPublishRequest(data) {
+      return hasOnlyAllowedFields(['id', 'title', 'content', 'status', 'requesterId', 'requesterRole', 'createdAt']) &&
+             data.id is string && data.title is string && data.content is string;
+    }
+    match /aiPublishRequests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidAiPublishRequest(request.resource.data);
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.requesterId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+  }
+}

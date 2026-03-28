@@ -1,0 +1,7 @@
+{
+  "name": "MONEYLINK APPS",
+  "description": "The ultimate financial management platform for loans, savings, and digital services.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

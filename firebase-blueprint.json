@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a registered user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "nrc": { "type": "string" },
+        "password": { "type": "string" },
+        "isRegistered": { "type": "boolean" },
+        "isVerified": { "type": "boolean" },
+        "balance": { "type": "number" },
+        "adminId": { "type": "string" }
+      },
+      "required": ["id", "name", "phone"]
+    },
+    "Agent": {
+      "title": "Agent",
+      "description": "Represents a support agent",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string" },
+        "adminId": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Represents a task assigned to an agent",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" },
+        "assignedTo": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "AiPublishRequest": {
+      "title": "AiPublishRequest",
+      "description": "Represents a request to publish AI generated content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "status": { "type": "string" },
+        "requesterId": { "type": "string" },
+        "requesterRole": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "content", "requesterId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "User documents"
+    },
+    "/agents/{agentId}": {
+      "schema": { "$ref": "Agent" },
+      "description": "Agent documents"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "Task" },
+      "description": "Task documents"
+    },
+    "/aiPublishRequests/{requestId}": {
+      "schema": { "$ref": "AiPublishRequest" },
+      "description": "AI Publish Request documents"
+    }
+  }
+}
