@@ -37,16 +37,26 @@ async function startServer() {
       const firebaseConfigPath = path.join(__dirname, 'firebase-applet-config.json');
       if (fs.existsSync(firebaseConfigPath)) {
         const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
-        const { initializeApp } = await import('firebase/app');
-        const { getFirestore } = await import('firebase/firestore');
+        const admin = await import('firebase-admin');
+        const { getFirestore } = await import('firebase-admin/firestore');
         
-        firebaseApp = initializeApp(firebaseConfig);
-        firestore = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-        console.log('Firebase initialized for server-side persistence');
+        if (!admin.apps.length) {
+          admin.initializeApp({
+            projectId: firebaseConfig.projectId,
+          });
+        }
+        
+        try {
+          firestore = getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
+        } catch (e) {
+          firestore = getFirestore();
+        }
+        
+        console.log('Firebase Admin initialized for server-side persistence');
         return true;
       }
     } catch (error) {
-      console.error('Failed to initialize Firebase on server:', error);
+      console.error('Failed to initialize Firebase Admin on server:', error);
     }
     return false;
   };
@@ -54,9 +64,10 @@ async function startServer() {
   const syncToFirestore = async (data: any) => {
     if (!firestore) return;
     try {
-      const { doc, setDoc } = await import('firebase/firestore');
-      await setDoc(doc(firestore, 'backups', 'db'), data);
-      console.log('Database synced to Firestore');
+      // Use a stringified version to avoid Firestore nested array limits and undefined values
+      const stringifiedData = JSON.stringify(data);
+      await firestore.collection('backups').doc('db').set({ data: stringifiedData });
+      console.log('Database synced to Firestore via Admin SDK');
     } catch (error) {
       console.error('Failed to sync to Firestore:', error);
     }
@@ -65,11 +76,14 @@ async function startServer() {
   const restoreFromFirestore = async () => {
     if (!firestore) return null;
     try {
-      const { doc, getDoc } = await import('firebase/firestore');
-      const docSnap = await getDoc(doc(firestore, 'backups', 'db'));
-      if (docSnap.exists()) {
-        console.log('Database restored from Firestore');
-        return docSnap.data();
+      const docSnap = await firestore.collection('backups').doc('db').get();
+      if (docSnap.exists) {
+        console.log('Database restored from Firestore via Admin SDK');
+        const docData = docSnap.data();
+        if (docData && docData.data) {
+          return JSON.parse(docData.data);
+        }
+        return docData; // fallback if it was saved as an object
       }
     } catch (error) {
       console.error('Failed to restore from Firestore:', error);
@@ -1194,6 +1208,34 @@ async function startServer() {
     });
   });
 
+  // Admin Data Management API
+  app.post('/api/admin/backup', async (req, res) => {
+    try {
+      const data = readDb();
+      await syncToFirestore(data);
+      res.json({ success: true, message: 'Backup successful' });
+    } catch (error) {
+      console.error('Backup error:', error);
+      res.status(500).json({ success: false, message: 'Backup failed' });
+    }
+  });
+
+  app.post('/api/admin/restore', async (req, res) => {
+    try {
+      const remoteDb = await restoreFromFirestore();
+      if (remoteDb) {
+        writeDb(remoteDb);
+        dbCache = remoteDb;
+        res.json({ success: true, message: 'Restore successful' });
+      } else {
+        res.status(404).json({ success: false, message: 'No backup found' });
+      }
+    } catch (error) {
+      console.error('Restore error:', error);
+      res.status(500).json({ success: false, message: 'Restore failed' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     console.log("Starting in DEVELOPMENT mode");
@@ -1241,7 +1283,7 @@ async function startServer() {
       }
     });
 
-    app.get("*all", (req, res) => {
+    app.use((req, res) => {
       const indexPath = path.join(distPath, "index.html");
       console.log(`Serving catch-all index.html from: ${indexPath} for path: ${req.path}`);
       if (fs.existsSync(indexPath)) {

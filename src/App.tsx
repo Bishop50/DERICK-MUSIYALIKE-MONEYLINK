@@ -46,7 +46,7 @@ import { Toaster, toast } from 'sonner';
 
 const App: React.FC = () => {
   const [activeSection, setActiveSection] = useState<Section>(() => {
-    return (sessionStorage.getItem('moneylink_active_section') as Section) || 'home';
+    return (localStorage.getItem('moneylink_active_section') as Section) || 'home';
   });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
@@ -135,7 +135,7 @@ const App: React.FC = () => {
 
   // Persist state
   useEffect(() => {
-    sessionStorage.setItem('moneylink_active_section', activeSection);
+    localStorage.setItem('moneylink_active_section', activeSection);
   }, [activeSection]);
 
   // Prevent accidental reloads - REMOVED as per user request to stop reload site prompts
@@ -848,7 +848,7 @@ const App: React.FC = () => {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-[#F0F0F0] z-50">
-        <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-1 sm:gap-4">
           {navItems.map((item) => (
             <NavButton 
               key={item.id}

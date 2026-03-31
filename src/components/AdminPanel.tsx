@@ -93,9 +93,39 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onLogout, isDevelo
   const [streamingApps, setStreamingApps] = useState<StreamingApp[]>([]);
   const [agentRequests, setAgentRequests] = useState<any[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'requests' | 'users' | 'services' | 'system' | 'workplace' | 'storage' | 'chat' | 'agents' | 'meetings' | 'streaming' | 'live-meeting' | 'transactions' | 'agent-requests' | 'servers' | 'tools' | 'app-requests' | 'tasks' | 'loan-requests' | 'recurring-payments' | 'repayment-requests' | 'deleted-files'>(() => {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'requests' | 'users' | 'services' | 'system' | 'workplace' | 'storage' | 'chat' | 'agents' | 'meetings' | 'streaming' | 'live-meeting' | 'transactions' | 'agent-requests' | 'servers' | 'tools' | 'app-requests' | 'tasks' | 'loan-requests' | 'recurring-payments' | 'repayment-requests' | 'deleted-files' | 'data-management'>(() => {
     return (localStorage.getItem('moneylink_admin_active_tab') as any) || 'dashboard';
   });
+
+  const handleBackup = async () => {
+    try {
+      const res = await fetch('/api/admin/backup', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Database backed up successfully');
+      } else {
+        toast.error('Backup failed: ' + data.message);
+      }
+    } catch (e) {
+      toast.error('Backup failed');
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!confirm('Are you sure you want to restore the database from the last backup? This will overwrite current data.')) return;
+    try {
+      const res = await fetch('/api/admin/restore', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Database restored successfully');
+        window.location.reload();
+      } else {
+        toast.error('Restore failed: ' + data.message);
+      }
+    } catch (e) {
+      toast.error('Restore failed');
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('moneylink_admin_active_tab', activeTab);
@@ -360,26 +390,38 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onLogout, isDevelo
         fetchWithFallback('/api/deleted-items')
       ]);
       
-      setUsers(backendUsers);
-      setAgents(backendAgents);
-      setMeetings(backendMeetings);
-      setStreamingApps(backendStreaming);
-      setMyAppRequests(currentAdminId === 'main-admin' ? allRequests : allRequests.filter((r: any) => r.adminId === currentAdminId));
-      setTransactions(backendTransactions);
-      setLoanRequests(backendLoanRequests);
-      setRepaymentRequests(backendRepaymentRequests);
-      setTasks(backendTasks || []);
-      setAdminNotifications(backendAdminNotifications);
-      setRecurringPayments(backendRecurringPayments);
-      setAgentRequests(backendAgentRequests);
-      setDeletedItems(backendDeletedItems || []);
+      setUsers(prev => JSON.stringify(prev) !== JSON.stringify(backendUsers) ? backendUsers : prev);
+      setAgents(prev => JSON.stringify(prev) !== JSON.stringify(backendAgents) ? backendAgents : prev);
+      setMeetings(prev => JSON.stringify(prev) !== JSON.stringify(backendMeetings) ? backendMeetings : prev);
+      setStreamingApps(prev => JSON.stringify(prev) !== JSON.stringify(backendStreaming) ? backendStreaming : prev);
+      
+      const filteredRequests = currentAdminId === 'main-admin' ? allRequests : allRequests.filter((r: any) => r.adminId === currentAdminId);
+      setMyAppRequests(prev => JSON.stringify(prev) !== JSON.stringify(filteredRequests) ? filteredRequests : prev);
+      
+      setTransactions(prev => JSON.stringify(prev) !== JSON.stringify(backendTransactions) ? backendTransactions : prev);
+      setLoanRequests(prev => JSON.stringify(prev) !== JSON.stringify(backendLoanRequests) ? backendLoanRequests : prev);
+      setRepaymentRequests(prev => JSON.stringify(prev) !== JSON.stringify(backendRepaymentRequests) ? backendRepaymentRequests : prev);
+      setTasks(prev => JSON.stringify(prev) !== JSON.stringify(backendTasks || []) ? (backendTasks || []) : prev);
+      setAdminNotifications(prev => JSON.stringify(prev) !== JSON.stringify(backendAdminNotifications) ? backendAdminNotifications : prev);
+      setRecurringPayments(prev => JSON.stringify(prev) !== JSON.stringify(backendRecurringPayments) ? backendRecurringPayments : prev);
+      setAgentRequests(prev => JSON.stringify(prev) !== JSON.stringify(backendAgentRequests) ? backendAgentRequests : prev);
+      setDeletedItems(prev => JSON.stringify(prev) !== JSON.stringify(backendDeletedItems || []) ? (backendDeletedItems || []) : prev);
       
       if (backendConfig && Object.keys(backendConfig).length > 0) {
-        setConfig(prev => ({ ...prev, ...backendConfig }));
+        setConfig(prev => {
+          const newConfig = { ...prev, ...backendConfig };
+          if (JSON.stringify(prev) !== JSON.stringify(newConfig)) return newConfig;
+          return prev;
+        });
       }
 
       const storedConfig = JSON.parse(localStorage.getItem('moneylink_config') || '{}');
-      if (Object.keys(storedConfig).length > 0) setConfig(storedConfig);
+      if (Object.keys(storedConfig).length > 0) {
+        setConfig(prev => {
+          if (JSON.stringify(prev) !== JSON.stringify(storedConfig)) return storedConfig;
+          return prev;
+        });
+      }
       
       setIsConnectionActive(true);
       setTimeout(() => setIsConnectionActive(false), 1000); // Visual pulse
@@ -395,7 +437,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onLogout, isDevelo
     const directLogin = localStorage.getItem('moneylink_admin_direct_login');
     if (directLogin === 'true') {
       setIsLoggedIn(true);
-      localStorage.removeItem('moneylink_admin_direct_login'); // Use once
     }
     
     const storedConfig = JSON.parse(localStorage.getItem('moneylink_config') || '{}');
@@ -1815,6 +1856,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onLogout, isDevelo
           </button>
           {isDeveloper && (
             <button
+              onClick={() => setActiveTab('data-management')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                activeTab === 'data-management' ? 'bg-green-50 text-green-700' : 'text-[#666] hover:bg-gray-50'
+              }`}
+            >
+              <Database className="w-4 h-4" />
+              Data Management
+            </button>
+          )}
+          {isDeveloper && (
+            <button
               onClick={() => setActiveTab('deleted-files')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
                 activeTab === 'deleted-files' ? 'bg-green-50 text-green-700' : 'text-[#666] hover:bg-gray-50'
@@ -1937,6 +1989,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser, onLogout, isDevelo
           )}
 
           <div className="p-6">
+            {activeTab === 'data-management' && (
+              <div className="p-8 space-y-8">
+                <h2 className="text-2xl font-black">Data Management</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white p-6 rounded-3xl border border-[#E5E5E5] space-y-4">
+                    <h3 className="text-lg font-bold">Backup Database</h3>
+                    <p className="text-sm text-[#666]">Sync the current local database state to Firestore for permanent storage.</p>
+                    <button onClick={handleBackup} className="w-full py-3 bg-green-700 text-white rounded-xl font-bold hover:bg-green-800 transition-all">
+                      Backup Now
+                    </button>
+                  </div>
+                  <div className="bg-white p-6 rounded-3xl border border-[#E5E5E5] space-y-4">
+                    <h3 className="text-lg font-bold text-red-600">Restore Database</h3>
+                    <p className="text-sm text-[#666]">Restore the database from the last Firestore backup. This will overwrite current data.</p>
+                    <button onClick={handleRestore} className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all">
+                      Restore Now
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {activeTab === 'dashboard' && (
               <div className="space-y-8">
                 {/* Stats Grid */}

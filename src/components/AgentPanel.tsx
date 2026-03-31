@@ -112,6 +112,10 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ currentUser, onLogout, agentId,
     return (localStorage.getItem('moneylink_agent_active_tab') as any) || 'dashboard';
   });
 
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'pending' | 'in progress' | 'completed'>('all');
+  const [showOnlyMyTasks, setShowOnlyMyTasks] = useState(false);
+
   useEffect(() => {
     localStorage.setItem('moneylink_agent_active_tab', activeTab);
   }, [activeTab]);
@@ -1032,6 +1036,23 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ currentUser, onLogout, agentId,
                   <h2 className="text-2xl font-black">Agent Tasks</h2>
                   <p className="text-[#666] text-sm">Manage your daily operations and assignments</p>
                 </div>
+                {/* Filter UI */}
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-xs font-bold text-[#666]">
+                    <input type="checkbox" checked={showOnlyMyTasks} onChange={e => setShowOnlyMyTasks(e.target.checked)} />
+                    My Tasks
+                  </label>
+                  <select 
+                    value={taskStatusFilter} 
+                    onChange={e => setTaskStatusFilter(e.target.value as any)}
+                    className="p-2 border border-[#E5E5E5] rounded-xl text-xs font-bold outline-none"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="in progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
                 <div className="flex items-center gap-2 bg-purple-50 px-4 py-2 rounded-xl border border-purple-100">
                   <CheckCircle className="w-4 h-4 text-purple-600" />
                   <span className="text-xs font-bold text-purple-700 uppercase tracking-widest">
@@ -1081,16 +1102,22 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ currentUser, onLogout, agentId,
 
                 {/* Task List */}
                 <div className="lg:col-span-2 space-y-4">
-                  {tasks.filter(t => t.assignedTo === agentId).length === 0 ? (
+                  {tasks
+                    .filter(t => !showOnlyMyTasks || t.assignedTo === agentId)
+                    .filter(t => taskStatusFilter === 'all' || t.status === taskStatusFilter)
+                    .length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 bg-[#F8F9FA] rounded-[2rem] border border-dashed border-[#E5E5E5]">
                       <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
                         <CheckCircle className="w-8 h-8 text-[#CCC]" />
                       </div>
-                      <p className="text-[#999] font-bold">No tasks assigned yet.</p>
+                      <p className="text-[#999] font-bold">No tasks found.</p>
                     </div>
                   ) : (
-                    tasks.filter(t => t.assignedTo === agentId).map(task => (
-                      <div key={task.id} className="p-6 bg-white border border-[#E5E5E5] rounded-[2rem] flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-purple-500 transition-all group">
+                    tasks
+                      .filter(t => !showOnlyMyTasks || t.assignedTo === agentId)
+                      .filter(t => taskStatusFilter === 'all' || t.status === taskStatusFilter)
+                      .map(task => (
+                      <div key={task.id} className="p-6 bg-white border border-[#E5E5E5] rounded-[2rem] flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-purple-500 transition-all group cursor-pointer" onClick={() => setSelectedTask(task)}>
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-3">
                             <h3 className="font-bold text-lg">{task.title}</h3>
@@ -1102,7 +1129,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ currentUser, onLogout, agentId,
                               {task.priority}
                             </span>
                           </div>
-                          <p className="text-sm text-[#666] leading-relaxed">{task.description}</p>
+                          <p className="text-sm text-[#666] leading-relaxed">{task.description.substring(0, 60)}...</p>
                           <div className="flex items-center gap-4 text-[10px] text-[#999] font-bold uppercase tracking-widest">
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
@@ -1119,6 +1146,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ currentUser, onLogout, agentId,
                         <div className="flex items-center gap-3">
                           <select 
                             value={task.status} 
+                            onClick={(e) => e.stopPropagation()}
                             onChange={e => updateTaskStatus(task.id, e.target.value as any)} 
                             className={`p-3 border rounded-xl font-bold text-xs outline-none transition-all ${
                               task.status === 'completed' ? 'bg-green-50 border-green-200 text-green-700' :
@@ -1131,7 +1159,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ currentUser, onLogout, agentId,
                             <option value="completed">Completed</option>
                           </select>
                           <button 
-                            onClick={() => deleteTask(task.id)}
+                            onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }}
                             className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1219,6 +1247,46 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ currentUser, onLogout, agentId,
         {/* Edit User Modal */}
         <AnimatePresence>
           {/* Modals */}
+      {selectedTask && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-black tracking-tighter">TASK DETAILS</h2>
+              <button onClick={() => setSelectedTask(null)} className="p-2 hover:bg-[#F0F0F0] rounded-xl">
+                <XCircle className="w-6 h-6 text-[#999]" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <h3 className="text-2xl font-bold">{selectedTask.title}</h3>
+              <p className="text-sm text-[#666] leading-relaxed">{selectedTask.description}</p>
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[#F0F0F0]">
+                <div>
+                  <p className="text-[10px] font-bold text-[#999] uppercase">Priority</p>
+                  <p className="text-sm font-bold capitalize">{selectedTask.priority}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[#999] uppercase">Status</p>
+                  <p className="text-sm font-bold capitalize">{selectedTask.status}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[#999] uppercase">Assigned To</p>
+                  <p className="text-sm font-bold">{selectedTask.assignedTo || 'Unassigned'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[#999] uppercase">Created At</p>
+                  <p className="text-sm font-bold">{new Date(selectedTask.createdAt).toLocaleDateString()}</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {showDocModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl">

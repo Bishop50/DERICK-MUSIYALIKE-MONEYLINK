@@ -24,7 +24,14 @@ export const saveUserToLocalStorage = (user: User) => {
 
 export const getUserFromLocalStorage = (): User | null => {
   const savedUser = localStorage.getItem('moneylink_current_user');
-  return savedUser ? JSON.parse(savedUser) : null;
+  if (!savedUser) return null;
+  try {
+    return JSON.parse(savedUser);
+  } catch (error) {
+    console.error('Error parsing user from localStorage:', error);
+    localStorage.removeItem('moneylink_current_user');
+    return null;
+  }
 };
 
 export const removeUserFromLocalStorage = () => {
